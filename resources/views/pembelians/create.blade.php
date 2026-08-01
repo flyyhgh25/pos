@@ -1,0 +1,206 @@
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl leading-tight">
+            {{ __('Tambah Transaksi Pembelian') }}
+        </h2>
+    </x-slot>
+    <div class="max-w-5xl mx-auto py-6 grid grid-cols-1 gap-4"
+        x-data="pembelianForm(@js($barangs
+        ->map(fn($b) => [
+        'id' => $b->id,
+        'nama' => $b->nama_barang,
+        'harga' => $b->harga,
+        'stock' => $b->stock,
+        ])))">
+        <form method="POST" action="{{ route('pembelians.store') }}"
+            @submit="beforeSubmit($event)"
+            class="flex flex-col gap-4">
+            @csrf
+            <div>
+                <x-input-label for="tanggal"
+                    :value="__('Tanggal')" />
+                <x-text-input
+                    id="tanggal"
+                    name="tanggal"
+                    type="date"
+                    class="rounded-md"
+                    :value="old('tanggal', now()->toDateString())"
+                    required autofocus autocomplete="tanggal" />
+                <x-input-error class="mt-2" :messages="$errors->get('tanggal')" />
+            </div>
+            <div>
+                <x-input-label for="tanggal" :value="__('Supplier')" />
+                <select name="supplier_id" id="supplier_id" class="rounded-md" required>
+                    <option value="">Pilih Supplier</option>
+                    @foreach($suppliers as $supplier)
+                    <option value="{{$supplier->id}}"
+                        @selected(old('supplier_id')==$supplier->id)>
+                        {{$supplier->nama}}
+                    </option>
+                    @endforeach
+                </select>
+                <x-input-error class="mt-2" :messages="$errors->get('supplier')" />
+            </div>
+            <div class="overflow-hidden rounded-lg border bg-white">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-3 text-left">Barang</th>
+                            <th class="p-3 w-28">Qty</th>
+                            <th class="p-3 w-30">Harga Satuan</th>
+                            <th class="p-3 w-40">Subtotal</th>
+                            <th class="p-3 w-12"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(item,index) in items" :key="index">
+                            <tr class="border-t">
+                                <td class="p-3">
+                                    <select
+                                        class="w-full rounded border-gray-300"
+                                        :name="`items[${index}][barang_id]`"
+                                        x-model.number="item.barang_id"
+                                        @change="setHarga(item)">
+                                        <option value="">
+                                            Pilih Barang
+                                        </option>
+                                        <template
+                                            x-for="barang in barangs"
+                                            :key="barang.id">
+                                            <option
+                                                :value="barang.id"
+                                                x-text="`${barang.nama} (stok : ${barang.stock})`">
+                                            </option>
+                                        </template>
+                                    </select>
+                                </td>
+                                <td class="p-3">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        class="w-full rounded border-gray-300"
+                                        :name="`items[${index}][qty]`"
+                                        x-model.number="item.qty">
+                                </td>
+                                <td class="px-4 py-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        :name="`items[${index}][harga_satuan]`"
+                                        x-model.number="item.harga_satuan"
+                                        :value="item.harga_satuan"
+                                        readonly
+                                        class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+                                </td>
+                                <td class="p-3">
+                                    <span
+                                        x-text="formatRupiah(subtotal(item))">
+                                    </span>
+                                </td>
+                                <td class="p-3">
+                                    <button
+                                        type="button"
+                                        @click="removeItem(index)"
+                                        class="text-red-600">
+                                        x
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+
+                <div class="p-4 border-t">
+                    <button
+                        type="button"
+                        @click="addItem()"
+                        class="text-blue-600">
+                        + Tambah Barang
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-between items-center">
+                <h3 class="font-semibold">
+                    Total :
+                    <span x-text="formatRupiah(grandTotal())"></span>
+                </h3>
+                <div class="space-x-2">
+                    <a href="{{ route('pembelians.index') }}"
+                        class="px-4 py-2 border rounded">
+                        Batal
+                    </a>
+                    <button class="px-4 py-2 bg-blue-600 text-white rounded">
+                        Simpan
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    @push('scripts')
+    <script>
+        function pembelianForm(barangs) {
+            return {
+                barangs,
+                items: [{
+                    barang_id: '',
+                    qty: 1,
+                    harga_satuan: 0
+                }],
+                addItem() {
+                    this.items.push({
+                        barang_id: '',
+                        qty: 1,
+                        harga_satuan: 0
+                    })
+                },
+                removeItem(index) {
+                    this.items.splice(index, 1);
+                },
+                getBarang(id) {
+                    return this.barangs.find(b => b.id === id);
+                },
+                setHarga(item) {
+                    const barang = this.getBarang(item.barang_id);
+                    if (barang) {
+                        item.harga_satuan = barang.harga;
+                    }
+                },
+                subtotal(item) {
+                    let barang = this.getBarang(item.barang_id);
+                    return barang ? barang.harga * item.qty : 0;
+                },
+                grandTotal() {
+                    return this.items.reduce((total, item) => {
+                        return total + this.subtotal(item)
+                    }, 0);
+                },
+                formatRupiah(value) {
+                    return new Intl.NumberFormat(
+                        'id-ID', {
+                            style: 'currency',
+                            currency: 'IDR'
+                        }
+                    ).format(value)
+                },
+                beforeSubmit(e) {
+                    for (const item of this.items) {
+                        const barang = this.getBarang(item.barang_id);
+                        if (!barang) {
+                            alert('Pilih barang.');
+                            e.preventDefault();
+                            return;
+                            if (item.qty < 1) {
+                                alert('Qty minimal 1');
+                                e.preventDefault();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    @endpush
+</x-app-layout>
